@@ -1,12 +1,21 @@
 from flask import Flask, Response, make_response, jsonify;
-from applications.configuration import Configuration;
-from applications.models import database, Vote, ParticipantElection;
+from configuration import Configuration;
+from models import database, Vote, ParticipantElection, Election;
 from redis import Redis;
-from applications.admin.application import ongoingElection;
+import datetime;
 
 application = Flask( __name__ );
 application.config.from_object(Configuration)
 
+def ongoingElection(): #popravi sutra
+    todayDate = datetime.datetime.fromisoformat(datetime.datetime.now().isoformat());
+    elections = Election.query.all();
+    for election in elections:
+        start = datetime.datetime.fromisoformat(str(election.start));
+        end = datetime.datetime.fromisoformat(str(election.end));
+        if(start <= todayDate and end > todayDate):
+            return election;
+    return None;
 
 @application.route("/", methods=['GET', 'POST'])
 def deamon():
@@ -50,5 +59,5 @@ def deamon():
 
 if( __name__ == "__main__"):
     database.init_app( application )
-    application.run( debug=True, port= 5003)
+    application.run( debug=True, host="0.0.0.0", port= 5003)
 

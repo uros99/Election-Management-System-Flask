@@ -223,7 +223,7 @@ def isISOFormat(param):
     return True;
 
 def boolToInt(param):
-    if(param=="false"):
+    if(param==False):
         return 0;
     else:
         return 1;
