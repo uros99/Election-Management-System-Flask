@@ -1,10 +1,13 @@
 from flask import Flask, request, Response, make_response,jsonify;
 from configuration import Configuration;
-from models import database, User, UserRole;
+from models import database, User, UserRole, Role;
 from email.utils import parseaddr;
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, create_refresh_token, get_jwt, get_jwt_identity;
 from sqlalchemy import and_;
 from adminDecorator import roleCheck;
+import re;
+
+regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
 
 application = Flask( __name__ );
 application.config.from_object(Configuration)
@@ -36,6 +39,15 @@ def checkJMBG(param):
     return True;
 
 
+def checkEmail(email):
+    # pass the regular expression
+    # and the string into the fullmatch() method
+    if (re.fullmatch(regex, email)):
+        return True;
+
+    else:
+        return False;
+
 def checkPassword(param):
     if( len(param)<8 ):
         return False;
@@ -60,74 +72,69 @@ def checkPassword(param):
 
 @application.route("/register", methods=["POST"])
 def register():
-    returnMessage = {
-        "message": ""
-    }
     inputs = {}
-    inputs["email"] = request.json.get("email", "");
-    inputs["password"] = request.json.get("password", "");
+    inputs["jmbg"] = request.json.get("jmbg", "");
     inputs["forename"] = request.json.get("forename", "");
     inputs["surname"] = request.json.get("surname", "");
-    inputs["jmbg"] = request.json.get("jmbg", "");
+    inputs["email"] = request.json.get("email", "");
+    inputs["password"] = request.json.get("password", "");
 
     required = [value for value in inputs if len( inputs[value] ) == 0];
     for value in required:
-        returnMessage["message"] += "Field " + value + " is required";
+        return make_response(jsonify(message="Field " + value + " is missing."), 400);
 
     if(checkJMBG(inputs["jmbg"]) == False):
-        returnMessage["message"] += "Invalid jmbg";
+        return make_response(jsonify(message="Invalid jmbg."), 400);
 
-    result = parseaddr(inputs["email"])
-    if( len( result[1]) == 0 ):
-        returnMessage["message"] += "Invalid email";
+    result = checkEmail(inputs["email"])
+    if(not result):
+        return make_response(jsonify(message="Invalid email."), 400);
 
     if(checkPassword(inputs["password"])==False):
-        returnMessage["message"] += "Invalid password";
+        return make_response(jsonify(message="Invalid password."), 400);
 
-    if( len( returnMessage["message"] ) > 0):
-        return make_response(jsonify(returnMessage), 400);
+    users = User.query.all();
+    for user in users:
+        if(user.email==inputs["email"]):
+            return make_response(jsonify(message="Email already exists."), 400);
 
     user = User(email = inputs["email"], password=inputs["password"], forename=inputs["forename"], lastname=inputs["surname"], jmbg=inputs["jmbg"]);
     database.session.add( user );
     database.session.commit();
 
+    # roleId = Role.query.filter(Role.role == "user").first();
+
     userRole = UserRole(userId=user.id, roleId=2);
     database.session.add( userRole );
     database.session.commit();
 
-    return Response ( "Successful registration!", status=200);
+    return Response (status=200);
 
 jwt = JWTManager( application);
 
 
 @application.route("/login", methods=["POST"])
 def login():
-    returnMessage = {
-        "message": ""
-    }
     email = request.json.get("email", "");
     password = request.json.get("password", "");
 
     if ( len(email)==0 ):
-        returnMessage["message"] = "Field email is missing"
+        return make_response(jsonify(message="Field email is missing."), 400);
     if( len(password)==0 ):
-        returnMessage["message"] = "Field password is missing"
+        return make_response(jsonify(message="Field password is missing."), 400);
 
-    result = parseaddr(email)
-    if (len(result[1]) == 0):
-        returnMessage["message"] += "Invalid email";
+    result = checkEmail(email)
+    if (not result):
+        return make_response(jsonify(message="Invalid email."), 400);
 
     user = User.query.filter(and_(User.email == email, User.password == password)).first();
     if(not user):
-        returnMessage["message"] = "Incorrect credentials"
-
-    if (len(returnMessage["message"]) > 0):
-        return make_response(jsonify(returnMessage), 400);
+        return make_response(jsonify(message="Invalid credentials."), 400);
 
     additionalClaims = {
+        "jmbg": user.jmbg,
         "forename" : user.forename,
         "surname" : user.lastname,
-        "jmbg" : user.jmbg,
         "roles" : [ str(role) for role in user.roles ]
     }
 
@@ -147,6 +154,7 @@ def refresh():
     identity = get_jwt_identity();
     refreshClaims = get_jwt();
     additionalClaims = {
+        "jmbg": refreshClaims["jmbg"],
         "forename" : refreshClaims["forename"],
         "surname": refreshClaims["surname"],
         "roles": refreshClaims["roles"]
@@ -155,23 +163,23 @@ def refresh():
     return make_response(jsonify(accessToken=accessToken), 200);
 
 @application.route("/delete", methods=["POST"])
-@roleCheck(role="(Admin)")
+@roleCheck(role="admin")
 def delete():
     email = request.json.get("email", "");
     if(len(email)==0):
-        return Response(jsonify(message="Email field is required"), status=400);
+        return make_response(jsonify(message="Field email is missing."), 400);
 
-    result = parseaddr(email)
-    if (len(result[1]) == 0):
-        return Response(jsonify(message="Invalid email",status=400));
+    result = checkEmail(email)
+    if (not result):
+        return make_response(jsonify(message="Invalid email."), 400);
 
     user = User.query.filter(User.email == email).first();
     if(not user):
-        return Response(jsonify(message="User does not exists"), status=400);
+        return make_response(jsonify(message="Unknown user."), 400);
 
     database.session.delete(user);
     database.session.commit();
-    return Response("Successful deleted user!", status=200);
+    return Response(status=200);
 
 if( __name__ == "__main__"):
     database.init_app( application )

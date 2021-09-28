@@ -7,6 +7,7 @@ COPY authentication/migrate.py migrate.py
 COPY authentication/adminDecorator.py adminDecorator.py
 COPY authentication/configuration.py configuration.py
 COPY authentication/models.py models.py
+COPY authentication/manage.py manage.py
 COPY requirements.txt requirements.txt
 
 RUN pip install -r requirements.txt

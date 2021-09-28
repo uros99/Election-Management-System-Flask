@@ -9,34 +9,91 @@ services:
       test: ["CMD", "mysqladmin","ping", "-h", "localhost"]
       timeout: 10s
       retries: 10
+    volumes:
+      - dbauthentication:/var/lib/mysql
+    networks:
+      - authenticationNetwork
   authenticationDBMigration:
     image: authenticationdbmigration
     environment:
-      - DATABASE_URL=election
+      - DATABASE_URL=authenticationDB
     depends_on:
       authenticationDB:
         condition: service_healthy
+    networks:
+      - authenticationNetwork
   authentication:
     image: authentication
     environment:
-      - DATABASE_URL=election
+      - DATABASE_URL=authenticationDB
     depends_on:
       - authenticationDBMigration
+    networks:
+      - authenticationNetwork
     ports:
-    - 5002:5002
+      - 5002:5002
   election:
     image: mysql
     environment:
       - MYSQL_ROOT_PASSWORD=root
-  deamonDBMigration:
-    image: deamondbmigration
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      timeout: 10s
+      retries: 10
+    volumes:
+      - dbelection:/var/lib/mysql
+    networks:
+      - electionNetwork
+  electionDBMigration:
+    image: electiondbmigration
     environment:
       - DATABASE_URL=election
     depends_on:
-      - election
+      election:
+        condition: service_healthy
+    networks:
+      - electionNetwork
+  admin:
+    image: admin
+    environment:
+      - DATABASE_URL=election
+    depends_on:
+      - electionDBMigration
+    networks:
+      - electionNetwork
+    ports:
+      - 5001:5001
+  official:
+    image: official
+    environment:
+      - DATABASE_URL=election
+    depends_on:
+      - electionDBMigration
+    networks:
+      - electionNetwork
+    ports:
+      - 5004:5004
   deamon:
     image: deamon
     environment:
       - DATABASE_URL=election
     depends_on:
-      - deamonDBMigration
+      - electionDBMigration
+    networks:
+      - electionNetwork
+    ports:
+      - 5003:5003
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    networks:
+      - electionNetwork
+
+volumes:
+  dbauthentication:
+  dbelection:
+
+networks:
+  electionNetwork:
+  authenticationNetwork:

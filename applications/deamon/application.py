@@ -11,9 +11,7 @@ def ongoingElection(): #popravi sutra
     todayDate = datetime.datetime.fromisoformat(datetime.datetime.now().isoformat());
     elections = Election.query.all();
     for election in elections:
-        start = datetime.datetime.fromisoformat(str(election.start));
-        end = datetime.datetime.fromisoformat(str(election.end));
-        if(start <= todayDate and end > todayDate):
+        if(election.start <= todayDate and election.end > todayDate):
             return election;
     return None;
 
@@ -37,10 +35,12 @@ def deamon():
                     continue;
                 pollNumber = int(redis.lpop(Configuration.REDIS_VOTE_LIST));
                 reason = "";
-                if(GUID in guids):
-                    reason = "Duplicate ballot";
+                for guid in guids:
+                    if(guid == GUID):
+                        reason = "Duplicate ballot.";
                 else:
                     guids.append(GUID);
+
                 participantElection = ParticipantElection.query.filter(ParticipantElection.electionId == election.id);
 
                 exists = False;
@@ -48,13 +48,16 @@ def deamon():
                     if(value.pollNumber == pollNumber):
                         exists = True;
                 if(not exists):
-                    reason = "Invalid poll number";
-                if(len(reason)==0):
+                    reason = "Invalid poll number.";
+                if(len(reason)<1):
                     vote = Vote(guid=GUID, pollNumber=pollNumber, electionOfficialJmbg=jmbg, electionID=election.id);
+                    database.session.add(vote);
+                    database.session.commit();
                 else:
                     vote = Vote(guid=GUID, pollNumber=pollNumber, electionOfficialJmbg=jmbg, reason=reason, electionID=election.id);
-                database.session.add(vote);
-                database.session.commit();
+                    database.session.add(vote);
+                    database.session.commit();
+
 
 
 if( __name__ == "__main__"):

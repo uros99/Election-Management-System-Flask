@@ -29,15 +29,15 @@ class Participant (database.Model):
 class Election (database.Model):
     __tablename__ = "election";
     id = database.Column(database.Integer, primary_key=True);
-    start = database.Column(database.String(45), nullable=False);
-    end = database.Column(database.String(45), nullable=False);
+    start = database.Column(database.DateTime, nullable=False);
+    end = database.Column(database.DateTime, nullable=False);
     individual = database.Column(database.Integer, nullable=False);
     participants = database.relationship("Participant", secondary=ParticipantElection.__table__, back_populates="elections")
 
-    def individualString(self):
+    def individualBool(self):
         if(self.individual==0):
-            return "false";
-        return "true";
+            return False;
+        return True;
 
     def getParticipantsJSON(self):
         participantsJSON = [];

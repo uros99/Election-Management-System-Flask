@@ -17,10 +17,10 @@ class Participant (database.Model):
     individual = database.Column(database.Integer, nullable=False);
     elections = database.relationship("Election", secondary=ParticipantElection.__table__, back_populates="participants")
 
-    def individualString(self):
+    def individualBool(self):
         if(self.individual==0):
-            return "false";
-        return "true";
+            return False;
+        return True;
 
     def __repr__(self):
         return "id:{}, name:{}, individual:{}".format(self.id,self.name,self.individualString());
